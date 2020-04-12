@@ -7,6 +7,7 @@ extern crate termcolor;
 use dialoguer::Select;
 use termcolor::WriteColor;
 
+use std::collections::HashMap;
 use std::io;
 use std::io::{BufRead, Write};
 use std::process::Command;
@@ -103,27 +104,42 @@ where
     fn setup_editor_path(&mut self) -> io::Result<()> {
         self.printer.print_editor_selection_header();
 
+        let default_editors = vec!["vim", "nano", "micro"];
+        let mut editors_and_path: HashMap<String, String> = HashMap::new();
+        let mut available_editors: Vec<&str> = vec![];
+
+        for editor in default_editors.iter() {
+            match get_if_available(editor) {
+                Some(path) => {
+                    editors_and_path.insert((*editor).to_string(), path);
+                    available_editors.push(editor);
+                }
+                None => (),
+            }
+        }
+        available_editors.push("Other (provide name, e.g. 'emacs')");
+
         let select_index = Select::new()
             .default(0)
-            .items(&["vim", "nano", "Other (provide name, e.g. 'emacs')"])
+            .items(available_editors.as_slice())
             .interact()
             .unwrap();
 
-        let chosen_editor = match select_index {
-            0 => "vim".to_string(),
-            1 => "nano".to_string(),
-            2 => {
-                self.printer.print_input_header("");
-                self.printer.flush().unwrap();
-                self.reader.read()
-            }
-            _ => panic!("You should not be able to get here"),
+        let last_index = available_editors.len() - 1;
+        if select_index == last_index {
+            self.printer.print_input_header("");
+            self.printer.flush().unwrap();
+            let chosen_editor = self.reader.read();
+            let chosen_editor_path =
+                get_if_available(chosen_editor.as_str()).unwrap_or_else(|| {
+                    panic!("Could not find executable for {} - aborting", chosen_editor)
+                });
+            return self.fh.config_write(Editor, chosen_editor_path);
         };
 
-        let editor_path = get_if_available(chosen_editor.as_str())
-            .expect(format!("Could not find executable for {} - aborting", chosen_editor).as_str());
-
-        self.fh.config_write(Editor, editor_path)
+        let chosen_editor = available_editors[select_index];
+        let chosen_editor_path = editors_and_path.get(chosen_editor).unwrap();
+        self.fh.config_write(Editor, chosen_editor_path.to_string())
     }
 
     fn is_first_time_run(&self) -> bool {
