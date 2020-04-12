@@ -104,7 +104,7 @@ where
     fn setup_editor_path(&mut self) -> io::Result<()> {
         self.printer.print_editor_selection_header();
 
-        let default_editors = vec!["vim", "nano", "micro"];
+        let default_editors = ["vim", "nano", "micro"];
         let mut editors_and_path: HashMap<String, String> = HashMap::new();
         let mut available_editors: Vec<&str> = vec![];
 
